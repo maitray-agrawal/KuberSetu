@@ -4,7 +4,7 @@
 [![React](https://img.shields.io/badge/React-19.0+-61DAFB.svg?style=flat&logo=react)](https://react.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4.0-38B2AC.svg?style=flat&logo=tailwind-css)](https://tailwindcss.com/)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB.svg?style=flat&logo=python)](https://python.org)
-[![Tests](https://img.shields.io/badge/pytest-5%20passed-brightgreen.svg?style=flat&logo=pytest)](https://pytest.org)
+[![Tests](https://img.shields.io/badge/pytest-7%20passed-brightgreen.svg?style=flat&logo=pytest)](https://pytest.org)
 
 **KuberSetu** (powered by the **SettleSense Engine**) is an automated 3-way financial reconciliation engine and risk decision system designed to match transactions across **Payment Gateways**, **Internal Ledgers**, and **Bank Settlement Statements**.
 

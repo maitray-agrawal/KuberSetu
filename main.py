@@ -91,7 +91,7 @@ def run_reconciliation_logic(save_log: bool = False):
             if abs(gw['amount'] - bank['credited_amount']) > 0.01:
                 causes.append("FEE_VARIANCE")
                 exceptions_logged["FEE_VARIANCE"] += 1
-            if (bank['dt'] - gw['dt']).days > 0:
+            if (bank['dt'].normalize() - gw['dt'].normalize()).days > 0:
                 causes.append("TIMING_DRIFT")
                 exceptions_logged["TIMING_DRIFT"] += 1
                 
