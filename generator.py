@@ -6,7 +6,7 @@ import os
 from datetime import datetime, timedelta
 
 # --- CONFIGURATION ---
-NUM_CANONICAL_RECORDS = 200
+NUM_CANONICAL_RECORDS = 600
 SEED = 42
 random.seed(SEED)
 
