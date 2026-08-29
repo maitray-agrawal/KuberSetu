@@ -30,7 +30,7 @@ def test_exact_match_scenario():
     assert item["status"] == "AUTO_RESOLVED"
 
 def test_known_fuzzy_case_resolves_correctly():
-    """Verify that a reference variance fuzzy match produces root_causes == ['REFERENCE_VARIANCE'] exactly."""
+    """Verify that a reference variance fuzzy match resolves with Pass 2 confidence meeting the >= 0.50 ML decision threshold."""
     gt = get_ground_truth()
     fuzzy_cid = next(cid for cid, t in gt.items() if t["scenario"] == "REFERENCE_VARIANCE")
     
@@ -43,7 +43,7 @@ def test_known_fuzzy_case_resolves_correctly():
     assert item["root_causes"] == ["REFERENCE_VARIANCE"]
     assert item["rule_fired"] == "REFERENCE_VARIANCE"
     assert item["matched_pass"] == "Pass 2 (Fuzzy Match)"
-    assert item["confidence"] >= 0.50 and item["confidence"] < 1.0
+    assert item["confidence"] >= 0.50 and item["confidence"] < 1.00
 
 def test_orphan_flagged_as_unresolved_orphan():
     """Verify that orphan transactions produce root_causes == ['MISSING_SOURCES'] exactly."""
