@@ -20,7 +20,9 @@ DISTRIBUTIONS = {
     "FEE_VARIANCE": 0.15,
     "REFERENCE_VARIANCE": 0.10,
     "DUPLICATE": 0.05,
-    "ORPHAN": 0.10
+    "GATEWAY_ONLY_ORPHAN": 0.04,
+    "LEDGER_ONLY_ORPHAN": 0.03,
+    "BANK_ONLY_ORPHAN": 0.03
 }
 
 # --- HELPER FUNCTIONS ---
@@ -55,6 +57,7 @@ def fuzz_reference(ref):
 # --- GENERATION LOOP ---
 gateway_data, ledger_data, bank_data = [], [], []
 ground_truth = {}
+scenario_counts = {}
 
 choices = list(DISTRIBUTIONS.keys())
 weights = list(DISTRIBUTIONS.values())
@@ -62,22 +65,24 @@ weights = list(DISTRIBUTIONS.values())
 for _ in range(NUM_CANONICAL_RECORDS):
     txn = generate_canonical_txn()
     scenario = random.choices(choices, weights=weights)[0]
+    scenario_counts[scenario] = scenario_counts.get(scenario, 0) + 1
     
     cid = txn["canonical_id"]
     amt = txn["true_amount"]
     fee = txn["fee"]
     dt = txn["true_date"]
     
-    # Baseline: Exact match properties
+    # Baseline: Exact match properties (Fix: bank_amt = amt by default)
     gw_ref, leg_ref, bank_ref = cid, cid, cid
-    gw_amt, leg_amt, bank_amt = amt, amt, amt - fee
+    gw_amt, leg_amt, bank_amt = amt, amt, amt
     gw_dt, leg_dt, bank_dt = dt, dt, dt
     
     # Apply Scenarios
     if scenario == "TIMING_DRIFT":
         bank_dt = dt + timedelta(days=random.randint(1, 4))
     elif scenario == "FEE_VARIANCE":
-        bank_amt = bank_amt - random.choice([0.05, 10.0, 5.50])
+        # Subtract fee + extra variance specifically for FEE_VARIANCE
+        bank_amt = amt - fee - random.choice([0.05, 10.0, 5.50])
     elif scenario == "REFERENCE_VARIANCE":
         leg_ref = fuzz_reference(cid)
         bank_ref = fuzz_reference(cid)
@@ -88,10 +93,17 @@ for _ in range(NUM_CANONICAL_RECORDS):
     bank_row = {"settlement_ref": bank_ref, "credited_amount": round(bank_amt, 2), "settled_on": format_date(bank_dt, "bank")}
 
     # Inject into sources based on scenario rules
-    if scenario == "ORPHAN":
-        # Appears in gateway (user tried to pay), never hit ledger or bank
+    if scenario == "GATEWAY_ONLY_ORPHAN":
         gateway_data.append(gw_row)
         expected_leg, expected_bank = None, None
+    elif scenario == "LEDGER_ONLY_ORPHAN":
+        gateway_data.append(gw_row)
+        bank_data.append(bank_row)
+        expected_leg, expected_bank = None, bank_ref
+    elif scenario == "BANK_ONLY_ORPHAN":
+        gateway_data.append(gw_row)
+        ledger_data.append(leg_row)
+        expected_leg, expected_bank = leg_ref, None
     else:
         gateway_data.append(gw_row)
         ledger_data.append(leg_row)
@@ -121,4 +133,7 @@ with open(f"{DATA_DIR}/ground_truth.json", "w") as f:
     json.dump(ground_truth, f, indent=4)
 
 print(f"Generated {len(gateway_data)} Gateway, {len(ledger_data)} Ledger, and {len(bank_data)} Bank records.")
+print("Scenario Distribution:")
+for sc, count in sorted(scenario_counts.items()):
+    print(f"  - {sc}: {count}")
 print("Ground truth sealed.")
