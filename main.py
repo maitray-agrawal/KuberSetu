@@ -48,9 +48,16 @@ def run_reconciliation_logic(save_log: bool = False):
     bank_df['dt'] = pd.to_datetime(bank_df['settled_on'], format='%Y-%m-%d')
 
     matched_results = {}
-    exceptions_logged = {"TIMING_DRIFT": 0, "FEE_VARIANCE": 0, "REFERENCE_VARIANCE": 0}
+    duplicates = []
+    seen_gateway_ids = set()
+    exceptions_logged = {
+        "TIMING_DRIFT": 0,
+        "FEE_VARIANCE": 0,
+        "REFERENCE_VARIANCE": 0,
+        "DUPLICATE_DETECTED": 0
+    }
 
-    # PASS 1: Exact ID Matches
+    # PASS 1: Exact ID Matches & Duplicate Detection
     for _, gw in gw_df.iterrows():
         gw_id = str(gw['gateway_id']).strip()
         leg_match = leg_df[leg_df['entry_id'].astype(str).str.strip() == gw_id]
@@ -58,6 +65,27 @@ def run_reconciliation_logic(save_log: bool = False):
         
         if not leg_match.empty and not bank_match.empty:
             leg, bank = leg_match.iloc[0], bank_match.iloc[0]
+            
+            # Detect duplicate gateway row mapping to the same ledger/bank pair
+            if gw_id in seen_gateway_ids:
+                dup_entry = {
+                    "gateway_id": gw_id,
+                    "original_gateway_id": gw_id,
+                    "ledger_id": str(leg['entry_id']),
+                    "bank_id": str(bank['settlement_ref']),
+                    "matched_pass": "Pass 1 (Exact ID Match - Duplicate)",
+                    "root_causes": ["DUPLICATE_DETECTED"],
+                    "rule_fired": "DUPLICATE_DETECTED",
+                    "confidence": 1.00,
+                    "exposure": float(gw['amount']),
+                    "expected_loss": 0.0,
+                    "status": "DUPLICATE_DETECTED"
+                }
+                duplicates.append(dup_entry)
+                exceptions_logged["DUPLICATE_DETECTED"] += 1
+                continue
+
+            seen_gateway_ids.add(gw_id)
             causes = []
             
             if abs(gw['amount'] - bank['credited_amount']) > 0.01:
@@ -83,7 +111,8 @@ def run_reconciliation_logic(save_log: bool = False):
             }
 
     # PASS 2: Fuzzy Matches
-    gw_unmatched = gw_df[~gw_df['gateway_id'].isin(matched_results.keys())]
+    matched_and_dup_ids = set(matched_results.keys()).union(seen_gateway_ids)
+    gw_unmatched = gw_df[~gw_df['gateway_id'].isin(matched_and_dup_ids)]
     leg_unmatched = leg_df[~leg_df['entry_id'].isin([m['ledger_id'] for m in matched_results.values()])]
     bank_unmatched = bank_df[~bank_df['settlement_ref'].isin([m['bank_id'] for m in matched_results.values()])]
 
@@ -134,11 +163,16 @@ def run_reconciliation_logic(save_log: bool = False):
 
     for _, gw in gw_unmatched.iterrows():
         gw_id = str(gw['gateway_id']).strip()
-        if gw_id not in matched_results:
+        if gw_id not in matched_results and gw_id not in seen_gateway_ids:
+            leg_m = leg_df[leg_df['entry_id'].astype(str).str.strip() == gw_id]
+            bank_m = bank_df[bank_df['settlement_ref'].astype(str).str.strip() == gw_id]
+            leg_id = str(leg_m.iloc[0]['entry_id']) if not leg_m.empty else None
+            bank_id = str(bank_m.iloc[0]['settlement_ref']) if not bank_m.empty else None
+            
             orphans.append({
                 "gateway_id": gw_id,
-                "ledger_id": None,
-                "bank_id": None,
+                "ledger_id": leg_id,
+                "bank_id": bank_id,
                 "matched_pass": "Unmatched (Orphan)",
                 "exposure": float(gw['amount']),
                 "status": "UNRESOLVED_ORPHAN",
@@ -167,11 +201,13 @@ def run_reconciliation_logic(save_log: bool = False):
     metrics = {
         "total_processed": len(gw_df),
         "auto_resolved_count": len(auto_resolved),
-        "auto_resolved_value": sum(item['exposure'] for item in auto_resolved),
+        "auto_resolved_value": round(sum(item['exposure'] for item in auto_resolved), 2),
         "human_review_count": len(human_review),
-        "human_review_value": sum(item['exposure'] for item in human_review),
+        "human_review_value": round(sum(item['exposure'] for item in human_review), 2),
         "orphan_count": len(orphans),
-        "orphan_value": sum(item['exposure'] for item in orphans),
+        "orphan_value": round(sum(item['exposure'] for item in orphans), 2),
+        "duplicate_count": len(duplicates),
+        "duplicate_value": round(sum(item['exposure'] for item in duplicates), 2),
         "automation_rate": round(len(auto_resolved) / len(gw_df), 3) if len(gw_df) > 0 else 0.0
     }
 
@@ -184,6 +220,7 @@ def run_reconciliation_logic(save_log: bool = False):
             "timestamp": datetime.now().isoformat(),
             "metrics": metrics,
             "matched_results": matched_results,
+            "duplicates": duplicates,
             "audit_trail": audit_trail,
             "orphans": orphans,
             "exceptions_breakdown": exceptions_logged
@@ -198,6 +235,7 @@ def run_reconciliation_logic(save_log: bool = False):
         "human_review_queue": human_review,
         "auto_resolved": auto_resolved,
         "orphans": orphans,
+        "duplicates": duplicates,
         "exceptions_breakdown": exceptions_logged
     }
 
@@ -230,6 +268,7 @@ def get_audit_trail(
 
     res = run_reconciliation_logic(save_log=False)
     matched_results = res["matched_results"]
+    duplicates = res["duplicates"]
     orphans = res["orphans"]
 
     if clean_id in matched_results:
@@ -247,6 +286,22 @@ def get_audit_trail(
             "bank_id": item.get("bank_id")
         }
 
+    for dup in duplicates:
+        if dup["gateway_id"] == clean_id:
+            return {
+                "gateway_id": dup["gateway_id"],
+                "original_gateway_id": dup.get("original_gateway_id"),
+                "matched_pass": dup.get("matched_pass"),
+                "rule_fired": dup.get("rule_fired"),
+                "confidence": dup.get("confidence"),
+                "expected_loss": dup.get("expected_loss"),
+                "root_causes": dup.get("root_causes"),
+                "exposure": dup.get("exposure"),
+                "status": dup.get("status"),
+                "ledger_id": dup.get("ledger_id"),
+                "bank_id": dup.get("bank_id")
+            }
+
     for orphan in orphans:
         if orphan["gateway_id"] == clean_id:
             return {
@@ -258,8 +313,8 @@ def get_audit_trail(
                 "root_causes": orphan.get("root_causes", ["MISSING_SOURCES"]),
                 "exposure": orphan.get("exposure"),
                 "status": orphan.get("status", "UNRESOLVED_ORPHAN"),
-                "ledger_id": None,
-                "bank_id": None
+                "ledger_id": orphan.get("ledger_id"),
+                "bank_id": orphan.get("bank_id")
             }
 
     raise HTTPException(
@@ -273,10 +328,11 @@ def run_reconciliation():
     return {
         "metrics": res["metrics"],
         "human_review_queue": res["human_review_queue"],
+        "duplicates": res["duplicates"],
+        "orphans": res["orphans"],
         "exceptions_breakdown": res["exceptions_breakdown"]
     }
 
 if __name__ == "__main__":
     import uvicorn
-    # Run on port 8000
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

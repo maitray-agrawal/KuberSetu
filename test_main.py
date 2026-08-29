@@ -84,3 +84,20 @@ def test_audit_endpoint_decision_trail():
     resp_404 = client.get("/api/audit/NON_EXISTENT_TXN_999")
     assert resp_404.status_code == 404
     assert "not found" in resp_404.json()["detail"].lower()
+
+def test_duplicate_detection_scenario():
+    """Verify that duplicate gateway rows are detected, isolated into duplicates array, and updated in metrics."""
+    res = run_reconciliation_logic(save_log=False)
+    duplicates = res["duplicates"]
+    metrics = res["metrics"]
+    
+    assert len(duplicates) > 0, "Expected duplicates to be detected"
+    assert metrics["duplicate_count"] == len(duplicates)
+    assert metrics["duplicate_value"] > 0
+    
+    dup_item = duplicates[0]
+    assert dup_item["root_causes"] == ["DUPLICATE_DETECTED"]
+    assert dup_item["rule_fired"] == "DUPLICATE_DETECTED"
+    assert dup_item["status"] == "DUPLICATE_DETECTED"
+    assert "original_gateway_id" in dup_item
+
