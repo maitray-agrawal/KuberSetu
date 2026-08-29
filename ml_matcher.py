@@ -8,9 +8,31 @@ from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import precision_score, recall_score, confusion_matrix, brier_score_loss
 
+import hashlib
+
 DATA_DIR = os.getenv("DATA_DIR", "data")
 MODEL_DIR = "models"
 MODEL_PATH = os.path.join(MODEL_DIR, "matcher_model.joblib")
+MODEL_META_PATH = os.path.join(MODEL_DIR, "matcher_model_meta.json")
+
+def compute_data_fingerprint(data_dir: str = DATA_DIR) -> str:
+    """
+    Computes a deterministic SHA-256 hash across all training dataset files
+    consumed by ml_matcher (gateway.csv, ledger.csv, bank.csv, ground_truth.json).
+    """
+    filenames = ["bank.csv", "gateway.csv", "ground_truth.json", "ledger.csv"]
+    hasher = hashlib.sha256()
+
+    for filename in sorted(filenames):
+        filepath = os.path.join(data_dir, filename)
+        if os.path.exists(filepath):
+            with open(filepath, "rb") as f:
+                while chunk := f.read(8192):
+                    hasher.update(chunk)
+        else:
+            hasher.update(f"missing:{filename}".encode("utf-8"))
+
+    return hasher.hexdigest()
 
 def similarity(a, b):
     return difflib.SequenceMatcher(None, str(a).lower(), str(b).lower()).ratio()
@@ -111,7 +133,10 @@ def train_and_evaluate_model(data_dir: str = DATA_DIR, save_model: bool = True):
     if save_model:
         os.makedirs(MODEL_DIR, exist_ok=True)
         joblib.dump(clf, MODEL_PATH)
-        print(f"Model saved successfully to '{MODEL_PATH}'.")
+        fp = compute_data_fingerprint(data_dir)
+        with open(MODEL_META_PATH, "w") as f:
+            json.dump({"fingerprint": fp}, f, indent=2)
+        print(f"Model saved successfully to '{MODEL_PATH}' with dataset fingerprint metadata.")
 
     return clf, {
         "precision": precision,
@@ -120,10 +145,24 @@ def train_and_evaluate_model(data_dir: str = DATA_DIR, save_model: bool = True):
         "confusion_matrix": cm.tolist()
     }
 
-def get_matcher_model():
-    if not os.path.exists(MODEL_PATH):
-        clf, _ = train_and_evaluate_model(save_model=True)
+def get_matcher_model(data_dir: str = DATA_DIR):
+    current_fp = compute_data_fingerprint(data_dir)
+
+    if not os.path.exists(MODEL_PATH) or not os.path.exists(MODEL_META_PATH):
+        clf, _ = train_and_evaluate_model(data_dir=data_dir, save_model=True)
         return clf
+
+    try:
+        with open(MODEL_META_PATH, "r") as f:
+            metadata = json.load(f)
+        stored_fp = metadata.get("fingerprint")
+    except Exception:
+        stored_fp = None
+
+    if not stored_fp or stored_fp != current_fp:
+        clf, _ = train_and_evaluate_model(data_dir=data_dir, save_model=True)
+        return clf
+
     return joblib.load(MODEL_PATH)
 
 def extract_pair_features(gw_row, leg_row, bank_row):
