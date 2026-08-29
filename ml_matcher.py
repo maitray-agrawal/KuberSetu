@@ -6,7 +6,7 @@ import os
 import joblib
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import precision_score, recall_score, confusion_matrix
+from sklearn.metrics import precision_score, recall_score, confusion_matrix, brier_score_loss
 
 DATA_DIR = os.getenv("DATA_DIR", "data")
 MODEL_DIR = "models"
@@ -89,6 +89,8 @@ def train_and_evaluate_model(data_dir: str = DATA_DIR, save_model: bool = True):
 
     precision = precision_score(y_test, y_pred, zero_division=0)
     recall = recall_score(y_test, y_pred, zero_division=0)
+    # Isotonic regression and Platt scaling are omitted because a fitted calibration layer would overfit on candidate pools of this size.
+    brier_score = brier_score_loss(y_test, y_prob)
     cm = confusion_matrix(y_test, y_pred)
 
     print("==================================================")
@@ -100,6 +102,7 @@ def train_and_evaluate_model(data_dir: str = DATA_DIR, save_model: bool = True):
     print("--------------------------------------------------")
     print(f"Precision:            {precision:.2%}")
     print(f"Recall:               {recall:.2%}")
+    print(f"Brier Score:          {brier_score:.4f}")
     print("Confusion Matrix:")
     print(f"  [[TN: {cm[0][0]}, FP: {cm[0][1]}]")
     print(f"   [FN: {cm[1][0]}, TP: {cm[1][1]}]]")
@@ -113,6 +116,7 @@ def train_and_evaluate_model(data_dir: str = DATA_DIR, save_model: bool = True):
     return clf, {
         "precision": precision,
         "recall": recall,
+        "brier_score": brier_score,
         "confusion_matrix": cm.tolist()
     }
 
