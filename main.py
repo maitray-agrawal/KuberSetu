@@ -111,25 +111,45 @@ def run_reconciliation_logic(save_log: bool = False):
                 "exposure": float(gw['amount'])
             }
 
-    # PASS 2: Fuzzy Matches using ML Model (LogisticRegression)
+    # PASS 2: Fuzzy Matches using ML Model with Candidate Blocking
     matcher_model = get_matcher_model()
     matched_and_dup_ids = set(matched_results.keys()).union(seen_gateway_ids)
     gw_unmatched = gw_df[~gw_df['gateway_id'].isin(matched_and_dup_ids)]
     leg_unmatched = leg_df[~leg_df['entry_id'].isin([m['ledger_id'] for m in matched_results.values()])]
     bank_unmatched = bank_df[~bank_df['settlement_ref'].isin([m['bank_id'] for m in matched_results.values()])]
 
+    unblocked_comparisons = len(gw_unmatched) * len(leg_unmatched) * len(bank_unmatched)
+    blocked_comparisons = 0
+
     for _, gw in gw_unmatched.iterrows():
         best_match, best_score = None, 0.0
         gw_id = str(gw['gateway_id']).strip()
-        
-        for _, leg in leg_unmatched.iterrows():
-            for _, bank in bank_unmatched.iterrows():
-                if abs(gw['amount'] - leg['gross_value']) < 1 and abs(gw['amount'] - bank['credited_amount']) <= (gw['amount'] * 0.05):
-                    features = extract_pair_features(gw, leg, bank)
-                    match_prob = float(matcher_model.predict_proba(features)[0][1])
-                    if match_prob >= 0.50 and match_prob > best_score:
-                        best_score = match_prob
-                        best_match = (leg['entry_id'], bank['settlement_ref'])
+        gw_amt = float(gw['amount'])
+        gw_amt_bucket = round(gw_amt, -2)
+        gw_date = gw['dt'].floor('D')
+
+        # BLOCKING: Filter ledger candidates in the same amount bucket / range
+        leg_candidates = leg_unmatched[
+            (leg_unmatched['gross_value'].apply(lambda x: round(x, -2)) == gw_amt_bucket) |
+            (abs(gw_amt - leg_unmatched['gross_value']) < 1.0)
+        ]
+
+        # BLOCKING: Filter bank candidates in same amount bucket & within 3-day date window
+        bank_candidates = bank_unmatched[
+            ((bank_unmatched['credited_amount'].apply(lambda x: round(x, -2)) == gw_amt_bucket) |
+             (abs(gw_amt - bank_unmatched['credited_amount']) <= (gw_amt * 0.05))) &
+            (abs((bank_unmatched['dt'].dt.floor('D') - gw_date).dt.days) <= 3)
+        ]
+
+        blocked_comparisons += len(leg_candidates) * len(bank_candidates)
+
+        for _, leg in leg_candidates.iterrows():
+            for _, bank in bank_candidates.iterrows():
+                features = extract_pair_features(gw, leg, bank)
+                match_prob = float(matcher_model.predict_proba(features)[0][1])
+                if match_prob >= 0.50 and match_prob > best_score:
+                    best_score = match_prob
+                    best_match = (leg['entry_id'], bank['settlement_ref'])
 
         if best_match:
             matched_results[gw_id] = {
@@ -145,6 +165,9 @@ def run_reconciliation_logic(save_log: bool = False):
             exceptions_logged["REFERENCE_VARIANCE"] += 1
             leg_unmatched = leg_unmatched[leg_unmatched['entry_id'] != best_match[0]]
             bank_unmatched = bank_unmatched[bank_unmatched['settlement_ref'] != best_match[1]]
+
+    reduction_pct = (1.0 - (blocked_comparisons / unblocked_comparisons)) * 100.0 if unblocked_comparisons > 0 else 0.0
+    print(f"[Pass 2 Blocking Optimization] Unblocked candidate comparisons: {unblocked_comparisons} | Blocked candidate comparisons: {blocked_comparisons} | Complexity reduction: {reduction_pct:.2f}%")
 
     # PASS 3: RISK POLICY ENGINE
     auto_resolved = []
