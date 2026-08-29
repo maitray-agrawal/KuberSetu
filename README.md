@@ -165,4 +165,4 @@ docker compose up --build
 | `RISK_TOLERANCE_INR` | Maximum acceptable expected loss (₹) for auto-resolution | `500.00` |
 | `CORS_ORIGINS` | Allowed CORS origins for FastAPI middleware | `*` |
 | `DATA_DIR` | Path to dataset directory containing CSV files | `data` |
-| `VITE_API_URL` | Deployed backend URL for frontend client requests | `http://localhost:8000` |
+| `VITE_API_BASE_URL` | Deployed backend URL for frontend client requests | `http://localhost:8000` |
