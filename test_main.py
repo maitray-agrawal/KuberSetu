@@ -43,7 +43,7 @@ def test_known_fuzzy_case_resolves_correctly():
     assert item["root_causes"] == ["REFERENCE_VARIANCE"]
     assert item["rule_fired"] == "REFERENCE_VARIANCE"
     assert item["matched_pass"] == "Pass 2 (Fuzzy Match)"
-    assert item["confidence"] > 0.65 and item["confidence"] < 1.0
+    assert item["confidence"] >= 0.50 and item["confidence"] < 1.0
 
 def test_orphan_flagged_as_unresolved_orphan():
     """Verify that orphan transactions produce root_causes == ['MISSING_SOURCES'] exactly."""

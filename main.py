@@ -7,6 +7,7 @@ import math
 import os
 from datetime import datetime
 from dotenv import load_dotenv
+from ml_matcher import get_matcher_model, extract_pair_features
 
 load_dotenv()
 
@@ -110,7 +111,8 @@ def run_reconciliation_logic(save_log: bool = False):
                 "exposure": float(gw['amount'])
             }
 
-    # PASS 2: Fuzzy Matches
+    # PASS 2: Fuzzy Matches using ML Model (LogisticRegression)
+    matcher_model = get_matcher_model()
     matched_and_dup_ids = set(matched_results.keys()).union(seen_gateway_ids)
     gw_unmatched = gw_df[~gw_df['gateway_id'].isin(matched_and_dup_ids)]
     leg_unmatched = leg_df[~leg_df['entry_id'].isin([m['ledger_id'] for m in matched_results.values()])]
@@ -123,9 +125,10 @@ def run_reconciliation_logic(save_log: bool = False):
         for _, leg in leg_unmatched.iterrows():
             for _, bank in bank_unmatched.iterrows():
                 if abs(gw['amount'] - leg['gross_value']) < 1 and abs(gw['amount'] - bank['credited_amount']) <= (gw['amount'] * 0.05):
-                    avg_sim = (similarity(gw_id, leg['entry_id']) + similarity(gw_id, bank['settlement_ref'])) / 2
-                    if avg_sim > 0.65 and avg_sim > best_score:
-                        best_score = avg_sim
+                    features = extract_pair_features(gw, leg, bank)
+                    match_prob = float(matcher_model.predict_proba(features)[0][1])
+                    if match_prob >= 0.50 and match_prob > best_score:
+                        best_score = match_prob
                         best_match = (leg['entry_id'], bank['settlement_ref'])
 
         if best_match:
