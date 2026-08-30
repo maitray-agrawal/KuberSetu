@@ -169,6 +169,7 @@ function App() {
           <button
             onClick={() => loadData(true)}
             disabled={reconciling || loading}
+            aria-label="Run Reconciliation Engine"
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium text-sm rounded-lg transition-colors shadow-lg shadow-indigo-600/20"
           >
             <RefreshCw className={`w-4 h-4 ${reconciling ? 'animate-spin' : ''}`} />
@@ -181,7 +182,7 @@ function App() {
       <main className="max-w-7xl mx-auto space-y-8">
         {/* Error Alert */}
         {error && (
-          <div className="p-4 bg-rose-950/50 border border-rose-800/80 rounded-xl text-rose-300 flex items-start gap-3">
+          <div role="alert" aria-live="polite" className="p-4 bg-rose-950/50 border border-rose-800/80 rounded-xl text-rose-300 flex items-start gap-3">
             <XCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
             <div>
               <h3 className="font-semibold text-sm">Connection Error</h3>
@@ -314,6 +315,7 @@ function App() {
                   placeholder="Search Gateway ID..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
+                  aria-label="Search Gateway ID"
                   className="pl-9 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-48 sm:w-56"
                 />
               </div>
@@ -324,6 +326,7 @@ function App() {
                 <select
                   value={causeFilter}
                   onChange={(e) => setCauseFilter(e.target.value)}
+                  aria-label="Filter transactions by root cause"
                   className="bg-transparent text-xs text-slate-300 focus:outline-none cursor-pointer"
                 >
                   <option value="ALL" className="bg-slate-900 text-slate-200">All Causes</option>
@@ -339,6 +342,7 @@ function App() {
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
+                  aria-label="Sort transactions by metric"
                   className="bg-transparent text-xs text-slate-300 focus:outline-none cursor-pointer"
                 >
                   <option value="expected_loss_desc" className="bg-slate-900 text-slate-200">Loss (High to Low)</option>
@@ -447,6 +451,7 @@ function App() {
                             e.stopPropagation();
                             handleOpenAudit(item.gateway_id);
                           }}
+                          aria-label={`View audit trail for gateway transaction ${item.gateway_id}`}
                           className="px-3 py-1 bg-slate-800 hover:bg-indigo-600 hover:text-white text-slate-300 font-medium text-[11px] rounded-lg transition-colors inline-flex items-center gap-1.5"
                         >
                           <Eye className="w-3.5 h-3.5" /> Audit
@@ -487,6 +492,7 @@ function App() {
 
               <button
                 onClick={() => setSelectedAuditId(null)}
+                aria-label="Close Audit View modal"
                 className="p-1.5 text-slate-400 hover:text-white bg-slate-800/60 hover:bg-slate-800 rounded-lg transition-colors"
               >
                 <X className="w-5 h-5" />
@@ -600,6 +606,7 @@ function App() {
             <div className="px-6 py-3 border-t border-slate-800 bg-slate-950/50 flex justify-end">
               <button
                 onClick={() => setSelectedAuditId(null)}
+                aria-label="Close Audit View modal"
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-xl transition-colors"
               >
                 Close Audit View
