@@ -78,8 +78,12 @@ def run_matching_pipeline(gw_df: pd.DataFrame, leg_df: pd.DataFrame, bank_df: pd
     unblocked_comparisons = len(gw_unmatched) * len(leg_unmatched) * len(bank_unmatched)
     blocked_comparisons = 0
 
+    ambiguous_results = {}
+    orphan_results = []
+
     for _, gw in gw_unmatched.iterrows():
         best_match, best_score = None, 0.0
+        highest_cand_pair, highest_cand_score = None, 0.0
         gw_id = str(gw['gateway_id']).strip()
         gw_amt = float(gw['amount'])
         gw_amt_bucket = round(gw_amt, -2)
@@ -99,14 +103,19 @@ def run_matching_pipeline(gw_df: pd.DataFrame, leg_df: pd.DataFrame, bank_df: pd
         ]
 
         blocked_comparisons += len(leg_candidates) * len(bank_candidates)
+        has_candidates = (len(leg_candidates) > 0) and (len(bank_candidates) > 0)
 
-        for _, leg in leg_candidates.iterrows():
-            for _, bank in bank_candidates.iterrows():
-                features = extract_pair_features(gw, leg, bank)
-                match_prob = float(matcher_model.predict_proba(features)[0][1])
-                if match_prob >= 0.50 and match_prob > best_score:
-                    best_score = match_prob
-                    best_match = (leg['entry_id'], bank['settlement_ref'])
+        if has_candidates:
+            for _, leg in leg_candidates.iterrows():
+                for _, bank in bank_candidates.iterrows():
+                    features = extract_pair_features(gw, leg, bank)
+                    match_prob = float(matcher_model.predict_proba(features)[0][1])
+                    if match_prob > highest_cand_score:
+                        highest_cand_score = match_prob
+                        highest_cand_pair = (str(leg['entry_id']), str(bank['settlement_ref']))
+                    if match_prob >= 0.50 and match_prob > best_score:
+                        best_score = match_prob
+                        best_match = (str(leg['entry_id']), str(bank['settlement_ref']))
 
         if best_match:
             matched_results[gw_id] = {
@@ -122,12 +131,52 @@ def run_matching_pipeline(gw_df: pd.DataFrame, leg_df: pd.DataFrame, bank_df: pd
             exceptions_logged["REFERENCE_VARIANCE"] += 1
             leg_unmatched = leg_unmatched[leg_unmatched['entry_id'] != best_match[0]]
             bank_unmatched = bank_unmatched[bank_unmatched['settlement_ref'] != best_match[1]]
+        elif has_candidates:
+            ambiguous_results[gw_id] = {
+                "gateway_id": gw_id,
+                "ledger_id": highest_cand_pair[0] if highest_cand_pair else None,
+                "bank_id": highest_cand_pair[1] if highest_cand_pair else None,
+                "matched_pass": "Pass 2 (Ambiguous)",
+                "root_causes": ["BELOW_CONFIDENCE_THRESHOLD"],
+                "rule_fired": "BELOW_CONFIDENCE_THRESHOLD",
+                "confidence": round(highest_cand_score, 2),
+                "exposure": float(gw['amount']),
+                "expected_loss": round((1.0 - highest_cand_score) * float(gw['amount']), 2),
+                "status": "AMBIGUOUS_UNRESOLVED"
+            }
+            exceptions_logged["BELOW_CONFIDENCE_THRESHOLD"] = exceptions_logged.get("BELOW_CONFIDENCE_THRESHOLD", 0) + 1
+        else:
+            if len(leg_candidates) == 0 and len(bank_candidates) == 0:
+                rule_fired = "GATEWAY_ONLY_ORPHAN"
+            elif len(leg_candidates) == 0:
+                rule_fired = "LEDGER_ONLY_ORPHAN"
+            else:
+                rule_fired = "BANK_ONLY_ORPHAN"
+
+            best_leg_id = str(leg_candidates.iloc[0]['entry_id']) if len(leg_candidates) > 0 else None
+            best_bank_id = str(bank_candidates.iloc[0]['settlement_ref']) if len(bank_candidates) > 0 else None
+
+            orphan_results.append({
+                "gateway_id": gw_id,
+                "ledger_id": best_leg_id,
+                "bank_id": best_bank_id,
+                "matched_pass": "Unmatched (Orphan)",
+                "root_causes": ["MISSING_SOURCES"],
+                "rule_fired": rule_fired,
+                "confidence": 0.00,
+                "exposure": float(gw['amount']),
+                "expected_loss": float(gw['amount']),
+                "status": "UNRESOLVED_ORPHAN"
+            })
+            exceptions_logged["MISSING_SOURCES"] = exceptions_logged.get("MISSING_SOURCES", 0) + 1
 
     reduction_pct = (1.0 - (blocked_comparisons / unblocked_comparisons)) * 100.0 if unblocked_comparisons > 0 else 0.0
     print(f"[Pass 2 Blocking Optimization] Unblocked candidate comparisons: {unblocked_comparisons} | Blocked candidate comparisons: {blocked_comparisons} | Complexity reduction: {reduction_pct:.2f}%")
 
     return {
         "matched_results": matched_results,
+        "ambiguous_results": ambiguous_results,
+        "orphan_results": orphan_results,
         "duplicates": duplicates,
         "seen_gateway_ids": seen_gateway_ids,
         "exceptions_logged": exceptions_logged,

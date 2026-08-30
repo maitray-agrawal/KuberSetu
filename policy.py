@@ -21,13 +21,16 @@ def apply_risk_policy(gw_df: pd.DataFrame, leg_df: pd.DataFrame, bank_df: pd.Dat
     Identifies orphan transactions and computes summary metrics.
     """
     matched_results = matching_output["matched_results"]
+    ambiguous_results = matching_output.get("ambiguous_results", {})
+    orphan_results = matching_output.get("orphan_results", [])
     duplicates = matching_output["duplicates"]
     seen_gateway_ids = matching_output["seen_gateway_ids"]
     exceptions_logged = matching_output["exceptions_logged"]
 
     auto_resolved = []
     human_review = []
-    orphans = []
+    orphans = list(orphan_results)
+    ambiguous_unresolved = list(ambiguous_results.values())
 
     for gw_id, res in matched_results.items():
         prob_wrong = 1.0 - res['confidence']
@@ -43,60 +46,9 @@ def apply_risk_policy(gw_df: pd.DataFrame, leg_df: pd.DataFrame, bank_df: pd.Dat
             res['status'] = "HUMAN_REVIEW"
             human_review.append(res)
 
-    # Orphan classification (Gateway-only, Ledger-only, Bank-only)
-    matched_leg_ids = {m['ledger_id'] for m in matched_results.values()}
-    matched_bank_ids = {m['bank_id'] for m in matched_results.values()}
-
-    for _, gw in gw_df.iterrows():
-        gw_id = str(gw['gateway_id']).strip()
-        if gw_id not in matched_results and gw_id not in seen_gateway_ids:
-            orphans.append({
-                "gateway_id": gw_id,
-                "ledger_id": None,
-                "bank_id": None,
-                "matched_pass": "Unmatched (Orphan)",
-                "root_causes": ["MISSING_SOURCES"],
-                "rule_fired": "GATEWAY_ONLY_ORPHAN",
-                "confidence": 0.00,
-                "exposure": float(gw['amount']),
-                "expected_loss": float(gw['amount']),
-                "status": "UNRESOLVED_ORPHAN"
-            })
-            exceptions_logged["MISSING_SOURCES"] = exceptions_logged.get("MISSING_SOURCES", 0) + 1
-
-    for _, leg in leg_df.iterrows():
-        leg_id = str(leg['entry_id']).strip()
-        if leg_id not in matched_leg_ids and leg_id not in seen_gateway_ids:
-            orphans.append({
-                "gateway_id": f"LEDGER-{leg_id}",
-                "ledger_id": leg_id,
-                "bank_id": None,
-                "matched_pass": "Unmatched (Orphan)",
-                "root_causes": ["MISSING_SOURCES"],
-                "rule_fired": "LEDGER_ONLY_ORPHAN",
-                "confidence": 0.00,
-                "exposure": float(leg['gross_value']),
-                "expected_loss": float(leg['gross_value']),
-                "status": "UNRESOLVED_ORPHAN"
-            })
-            exceptions_logged["MISSING_SOURCES"] = exceptions_logged.get("MISSING_SOURCES", 0) + 1
-
-    for _, bank in bank_df.iterrows():
-        bank_id = str(bank['settlement_ref']).strip()
-        if bank_id not in matched_bank_ids and bank_id not in seen_gateway_ids:
-            orphans.append({
-                "gateway_id": f"BANK-{bank_id}",
-                "ledger_id": None,
-                "bank_id": bank_id,
-                "matched_pass": "Unmatched (Orphan)",
-                "root_causes": ["MISSING_SOURCES"],
-                "rule_fired": "BANK_ONLY_ORPHAN",
-                "confidence": 0.00,
-                "exposure": float(bank['credited_amount']),
-                "expected_loss": float(bank['credited_amount']),
-                "status": "UNRESOLVED_ORPHAN"
-            })
-            exceptions_logged["MISSING_SOURCES"] = exceptions_logged.get("MISSING_SOURCES", 0) + 1
+    # Route near-miss ambiguous records to human_review queue for reviewer visibility
+    for amb in ambiguous_unresolved:
+        human_review.append(amb)
 
     total_processed = len(gw_df)
     auto_cnt = len(auto_resolved)
@@ -107,6 +59,8 @@ def apply_risk_policy(gw_df: pd.DataFrame, leg_df: pd.DataFrame, bank_df: pd.Dat
     orphan_val = sum(i['exposure'] for i in orphans)
     dup_cnt = len(duplicates)
     dup_val = sum(i['exposure'] for i in duplicates)
+    amb_cnt = len(ambiguous_unresolved)
+    amb_val = sum(i['exposure'] for i in ambiguous_unresolved)
 
     metrics = {
         "total_processed": total_processed,
@@ -118,6 +72,8 @@ def apply_risk_policy(gw_df: pd.DataFrame, leg_df: pd.DataFrame, bank_df: pd.Dat
         "orphan_value": round(orphan_val, 2),
         "duplicate_count": dup_cnt,
         "duplicate_value": round(dup_val, 2),
+        "ambiguous_unresolved_count": amb_cnt,
+        "ambiguous_unresolved_value": round(amb_val, 2),
         "automation_rate": round(auto_cnt / total_processed, 3) if total_processed > 0 else 0.0
     }
 
@@ -127,6 +83,7 @@ def apply_risk_policy(gw_df: pd.DataFrame, leg_df: pd.DataFrame, bank_df: pd.Dat
         "human_review": human_review,
         "duplicates": duplicates,
         "orphans": orphans,
+        "ambiguous_unresolved": ambiguous_unresolved,
         "matched_results": matched_results,
         "exceptions_logged": exceptions_logged
     }

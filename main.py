@@ -79,6 +79,10 @@ def get_audit_trail(gateway_id: str):
         if orphan["gateway_id"] == target_id:
             return orphan
 
+    for amb in results.get("ambiguous_unresolved", []):
+        if amb["gateway_id"] == target_id:
+            return amb
+
     raise HTTPException(status_code=404, detail=f"Transaction ID {gateway_id} not found in audit trail.")
 
 if __name__ == "__main__":

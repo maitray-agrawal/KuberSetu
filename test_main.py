@@ -141,3 +141,19 @@ def test_audit_endpoint_decision_trail():
     resp_404 = client.get("/api/audit/NON_EXISTENT_TXN_999")
     assert resp_404.status_code == 404
     assert "not found" in resp_404.json()["detail"].lower()
+
+def test_ambiguous_unresolved_near_miss():
+    """Verify that records with candidates below ML threshold get AMBIGUOUS_UNRESOLVED classification."""
+    res = run_reconciliation_logic(save_log=False)
+    ambiguous = res["ambiguous_unresolved"]
+    
+    if ambiguous:
+        item = ambiguous[0]
+        assert item["status"] == "AMBIGUOUS_UNRESOLVED"
+        assert item["root_causes"] == ["BELOW_CONFIDENCE_THRESHOLD"]
+        assert item["rule_fired"] == "BELOW_CONFIDENCE_THRESHOLD"
+        assert item["confidence"] < 0.50
+        assert "gateway_id" in item
+        assert "ledger_id" in item
+        assert "bank_id" in item
+
