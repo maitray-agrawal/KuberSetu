@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  ShieldAlert, 
-  CheckCircle2, 
-  AlertTriangle, 
-  XCircle, 
-  Search, 
-  RefreshCw, 
-  Eye, 
-  X, 
-  Activity, 
-  Filter, 
-  Layers, 
-  ArrowUpDown, 
+import {
+  ShieldAlert,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  Search,
+  RefreshCw,
+  Eye,
+  X,
+  Activity,
+  Filter,
+  Layers,
+  ArrowUpDown,
   FileText,
   DollarSign
 } from 'lucide-react';
@@ -76,8 +76,8 @@ function App() {
       }
       const data = await res.json();
       setMetrics(data.metrics || null);
-      setExceptionsBreakdown(data.exceptions_breakdown || {});
-      setHumanReviewQueue(data.human_review_queue || []);
+      setExceptionsBreakdown(data.exceptions_logged || data.exceptions_breakdown || {});
+      setHumanReviewQueue(data.human_review || []);
       setHealthStatus('online');
     } catch (err) {
       console.error(err);
@@ -118,13 +118,13 @@ function App() {
 
   // Filtering & Sorting
   const filteredQueue = humanReviewQueue.filter((item) => {
-    const matchesSearch = 
+    const matchesSearch =
       item.gateway_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (item.ledger_id && item.ledger_id.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (item.bank_id && item.bank_id.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    const matchesCause = 
-      causeFilter === 'ALL' || 
+    const matchesCause =
+      causeFilter === 'ALL' ||
       (item.root_causes && item.root_causes.includes(causeFilter));
 
     return matchesSearch && matchesCause;
@@ -148,7 +148,7 @@ function App() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-                KuberSetu <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-medium">SettleSense AI</span>
+                KuberSetu <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-medium"> </span>
               </h1>
               <p className="text-xs text-slate-400 mt-0.5">Automated 3-Way Reconciliation & Risk Decision Engine</p>
             </div>
@@ -157,11 +157,10 @@ function App() {
 
         <div className="flex items-center gap-3">
           {/* Health status badge */}
-          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border ${
-            healthStatus === 'online'
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border ${healthStatus === 'online'
               ? 'bg-emerald-950/60 border-emerald-800/60 text-emerald-400'
               : 'bg-rose-950/60 border-rose-800/60 text-rose-400'
-          }`}>
+            }`}>
             <span className={`w-2 h-2 rounded-full ${healthStatus === 'online' ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
             {healthStatus === 'online' ? 'Backend Live' : 'Backend Offline'}
           </div>
@@ -284,8 +283,8 @@ function App() {
                     {(metrics.automation_rate * 100).toFixed(1)}%
                   </div>
                   <div className="w-full bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
-                    <div 
-                      className="bg-indigo-500 h-full rounded-full transition-all duration-500" 
+                    <div
+                      className="bg-indigo-500 h-full rounded-full transition-all duration-500"
                       style={{ width: `${metrics.automation_rate * 100}%` }}
                     />
                   </div>
@@ -381,7 +380,7 @@ function App() {
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
                   {filteredQueue.map((item) => (
-                    <tr 
+                    <tr
                       key={item.gateway_id}
                       className="hover:bg-slate-800/40 transition-colors group cursor-pointer"
                       onClick={() => handleOpenAudit(item.gateway_id)}
@@ -397,15 +396,14 @@ function App() {
                           {item.root_causes && item.root_causes.map((cause, idx) => (
                             <span
                               key={idx}
-                              className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
-                                cause === 'REFERENCE_VARIANCE'
+                              className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${cause === 'REFERENCE_VARIANCE'
                                   ? 'bg-amber-950/80 text-amber-300 border-amber-800/60'
                                   : cause === 'FEE_VARIANCE'
-                                  ? 'bg-purple-950/80 text-purple-300 border-purple-800/60'
-                                  : cause === 'TIMING_DRIFT'
-                                  ? 'bg-blue-950/80 text-blue-300 border-blue-800/60'
-                                  : 'bg-slate-800 text-slate-300 border-slate-700'
-                              }`}
+                                    ? 'bg-purple-950/80 text-purple-300 border-purple-800/60'
+                                    : cause === 'TIMING_DRIFT'
+                                      ? 'bg-blue-950/80 text-blue-300 border-blue-800/60'
+                                      : 'bg-slate-800 text-slate-300 border-slate-700'
+                                }`}
                             >
                               {cause}
                             </span>
@@ -418,13 +416,12 @@ function App() {
                         <div className="flex items-center gap-2">
                           <div className="w-16 bg-slate-800 h-2 rounded-full overflow-hidden">
                             <div
-                              className={`h-full rounded-full ${
-                                item.confidence >= 0.9
+                              className={`h-full rounded-full ${item.confidence >= 0.9
                                   ? 'bg-emerald-400'
                                   : item.confidence >= 0.75
-                                  ? 'bg-amber-400'
-                                  : 'bg-rose-400'
-                              }`}
+                                    ? 'bg-amber-400'
+                                    : 'bg-rose-400'
+                                }`}
                               style={{ width: `${item.confidence * 100}%` }}
                             />
                           </div>
@@ -468,11 +465,11 @@ function App() {
 
       {/* Section 3: Click-Through Decision Trail Detail Modal */}
       {selectedAuditId && (
-        <div 
+        <div
           className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={() => setSelectedAuditId(null)}
         >
-          <div 
+          <div
             className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
@@ -524,13 +521,12 @@ function App() {
                     <div>
                       <span className="text-[10px] uppercase font-semibold tracking-wider text-slate-500">Status</span>
                       <div className="mt-1">
-                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                          auditData.status === 'AUTO_RESOLVED'
+                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${auditData.status === 'AUTO_RESOLVED'
                             ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
                             : auditData.status === 'HUMAN_REVIEW'
-                            ? 'bg-amber-950 text-amber-400 border border-amber-800'
-                            : 'bg-rose-950 text-rose-400 border border-rose-800'
-                        }`}>
+                              ? 'bg-amber-950 text-amber-400 border border-amber-800'
+                              : 'bg-rose-950 text-rose-400 border border-rose-800'
+                          }`}>
                           {auditData.status}
                         </span>
                       </div>
