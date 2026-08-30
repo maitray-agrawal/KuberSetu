@@ -56,11 +56,15 @@ def run_benchmark():
     b_prec = b_tp / (b_tp + b_fp) if (b_tp + b_fp) > 0 else 0.0
     b_rec = b_tp / total_expected_matches if total_expected_matches > 0 else 0.0
     b_auto_rate = len(baseline_preds) / len(gw_df) if len(gw_df) > 0 else 0.0
+    b_orphan_cnt = len(gw_df) - len(baseline_preds)
+    b_ambiguous_cnt = 0
 
     # 2. KUBERSETU V2 FULL PIPELINE EVALUATION
     pipeline_res = run_reconciliation_logic(save_log=False)
     auto_resolved = pipeline_res['auto_resolved']
     total_processed = pipeline_res['metrics']['total_processed']
+    k_orphan_cnt = pipeline_res['metrics']['orphan_count']
+    k_ambiguous_cnt = pipeline_res['metrics']['ambiguous_unresolved_count']
 
     k_tp, k_fp, k_fp_exposure = 0, 0, 0.0
 
@@ -106,6 +110,8 @@ def run_benchmark():
 | **False-Match Count** | {b_fp} | {k_fp} |
 | **False-Match Exposure** | ₹{b_fp_exposure:,.2f} | ₹{k_fp_exposure:,.2f} |
 | **Automation Rate** | {b_auto_rate:.2%} | {k_auto_rate:.2%} |
+| **Orphan Count** | {b_orphan_cnt} | {k_orphan_cnt} |
+| **Ambiguous-Unresolved Count** | {b_ambiguous_cnt} | {k_ambiguous_cnt} |
 """
 
     print("==================================================")

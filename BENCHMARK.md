@@ -18,3 +18,5 @@
 | **False-Match Count** | 0 | 0 |
 | **False-Match Exposure** | ₹0.00 | ₹0.00 |
 | **Automation Rate** | 76.55% | 76.86% |
+| **Orphan Count** | 148 | 48 |
+| **Ambiguous-Unresolved Count** | 0 | 7 |
