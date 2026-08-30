@@ -216,6 +216,10 @@ npm run build
 # Start Vite dev server
 npm run dev
 ```
+
+> [!IMPORTANT]
+> **API Contract & Runtime Verification Note**: After making any changes to the `/api/reconcile` response shape in `policy.py` or `main.py`, run `npm run build` and manually verify in the browser (or via Cypress/E2E tests) that the **Human Review Queue** table populates with rows matching the **Human Review** summary card count. Do not rely solely on `npm run build` succeeding with zero errors, as response key mismatches compile cleanly in Vite and only fail silently at runtime.
+
 Frontend UI will be available at `http://localhost:5173`.
 
 ---
