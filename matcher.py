@@ -132,10 +132,16 @@ def run_matching_pipeline(gw_df: pd.DataFrame, leg_df: pd.DataFrame, bank_df: pd
             leg_unmatched = leg_unmatched[leg_unmatched['entry_id'] != best_match[0]]
             bank_unmatched = bank_unmatched[bank_unmatched['settlement_ref'] != best_match[1]]
         elif has_candidates:
-            ambiguous_results[gw_id] = {
-                "gateway_id": gw_id,
+            best_cand_dict = {
                 "ledger_id": highest_cand_pair[0] if highest_cand_pair else None,
                 "bank_id": highest_cand_pair[1] if highest_cand_pair else None,
+                "confidence": round(highest_cand_score, 2)
+            }
+            ambiguous_results[gw_id] = {
+                "gateway_id": gw_id,
+                "ledger_id": best_cand_dict["ledger_id"],
+                "bank_id": best_cand_dict["bank_id"],
+                "best_candidate": best_cand_dict,
                 "matched_pass": "Pass 2 (Ambiguous)",
                 "root_causes": ["BELOW_CONFIDENCE_THRESHOLD"],
                 "rule_fired": "BELOW_CONFIDENCE_THRESHOLD",

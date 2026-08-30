@@ -157,3 +157,31 @@ def test_ambiguous_unresolved_near_miss():
         assert "ledger_id" in item
         assert "bank_id" in item
 
+def test_orphan_count_matches_ground_truth():
+    """Verify that total pipeline orphan count aligns within tolerance with ground_truth.json (no longer doubled)."""
+    gt = get_ground_truth()
+    gt_orphan_count = sum(1 for v in gt.values() if "ORPHAN" in v["scenario"])
+    
+    res = run_reconciliation_logic(save_log=False)
+    pipeline_orphan_count = len(res["orphans"])
+    
+    tolerance = 15
+    assert abs(pipeline_orphan_count - gt_orphan_count) <= tolerance, (
+        f"Pipeline orphan count ({pipeline_orphan_count}) deviated significantly from Ground Truth ({gt_orphan_count})"
+    )
+
+def test_ambiguous_unresolved_best_candidate_fields():
+    """Assert every AMBIGUOUS_UNRESOLVED record includes a best_candidate field with confidence and ledger_id/bank_id populated, not null."""
+    res = run_reconciliation_logic(save_log=False)
+    ambiguous = res["ambiguous_unresolved"]
+    
+    assert len(ambiguous) > 0, "Expected at least one AMBIGUOUS_UNRESOLVED record"
+    for item in ambiguous:
+        assert "best_candidate" in item, "Expected best_candidate key in AMBIGUOUS_UNRESOLVED record"
+        cand = item["best_candidate"]
+        assert cand is not None
+        assert cand.get("confidence") is not None, "Expected confidence in best_candidate to be populated"
+        assert cand.get("ledger_id") is not None, "Expected ledger_id in best_candidate to be populated"
+        assert cand.get("bank_id") is not None, "Expected bank_id in best_candidate to be populated"
+
+
