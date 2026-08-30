@@ -12,6 +12,7 @@ services:
       - key: RISK_TOLERANCE_INR
         value: "500.00"
       - key: CORS_ORIGINS
-        value: "*"
+        # Set to the actual deployed Vercel frontend URL after deployment (e.g., https://kubersetu.vercel.app). Do not leave as wildcard in production.
+        value: "https://kubersetu.vercel.app"
       - key: DATA_DIR
         value: "data"
