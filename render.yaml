@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: kubersetu-backend
+    name: kubersetu-api
     env: python
     region: oregon
     plan: free
