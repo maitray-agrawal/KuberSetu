@@ -580,19 +580,36 @@ function App() {
 
                   {/* 3-Way Source IDs */}
                   <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
-                    <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Cross-System Identity Mapping</h4>
+                    <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                      {auditData.status === 'AMBIGUOUS_UNRESOLVED'
+                        ? 'Best Candidate Found (Unconfirmed)'
+                        : 'Cross-System Identity Mapping'}
+                    </h4>
                     <div className="flex justify-between items-center text-xs py-1 border-b border-slate-800/60">
                       <span className="text-slate-400">Gateway ID:</span>
                       <span className="font-mono text-indigo-300">{auditData.gateway_id}</span>
                     </div>
                     <div className="flex justify-between items-center text-xs py-1 border-b border-slate-800/60">
-                      <span className="text-slate-400">Ledger ID Match:</span>
+                      <span className="text-slate-400">
+                        {auditData.status === 'AMBIGUOUS_UNRESOLVED'
+                          ? 'Closest Ledger Candidate:'
+                          : 'Ledger ID Match:'}
+                      </span>
                       <span className="font-mono text-slate-300">{auditData.ledger_id || 'None'}</span>
                     </div>
                     <div className="flex justify-between items-center text-xs py-1">
-                      <span className="text-slate-400">Bank Settlement Ref:</span>
+                      <span className="text-slate-400">
+                        {auditData.status === 'AMBIGUOUS_UNRESOLVED'
+                          ? 'Closest Bank Candidate:'
+                          : 'Bank Settlement Ref:'}
+                      </span>
                       <span className="font-mono text-slate-300">{auditData.bank_id || 'None'}</span>
                     </div>
+                    {auditData.status === 'AMBIGUOUS_UNRESOLVED' && (
+                      <p className="text-[11px] text-amber-400/90 italic pt-1 border-t border-slate-800/60">
+                        System confidence was too low to auto-suggest this match — please verify independently.
+                      </p>
+                    )}
                   </div>
                 </>
               ) : null}
